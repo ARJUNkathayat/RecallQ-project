@@ -12,7 +12,7 @@ import {
   BarChart3,
   User,
   ArrowRight,
-  Sparkles
+  Target
 } from "lucide-react";
 
 interface SidebarProps {
@@ -24,6 +24,7 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: Layers },
+    { name: "Adaptive Quiz", href: "/quiz/binary-trees", icon: Target },
     { name: "Subjects", href: "/subjects", icon: BookOpen },
     { name: "Revision", href: "/revision", icon: RefreshCw },
     { name: "Analytics", href: "/analytics", icon: BarChart3 },
@@ -53,7 +54,9 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
         <nav className="space-y-1.5">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname?.startsWith(item.href));
 
             return (
               <Link
@@ -90,17 +93,20 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
       <div className="space-y-4 pt-4 border-t border-slate-100">
         
         {/* Scenic Landscape Card */}
-        <div className="relative rounded-2xl overflow-hidden p-4 bg-gradient-to-br from-indigo-100 via-sky-50 to-blue-100 border border-indigo-200/60 shadow-xs group cursor-pointer">
+        <Link
+          href="/quiz/binary-trees"
+          className="block relative rounded-2xl overflow-hidden p-4 bg-gradient-to-br from-indigo-100 via-sky-50 to-blue-100 border border-indigo-200/60 shadow-xs group cursor-pointer"
+        >
           <div className="relative z-10">
             <p className="text-xs font-bold text-slate-800 leading-snug">
               Small steps today, better retention tomorrow.
             </p>
             <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 text-[10px] font-bold text-indigo-700 shadow-2xs group-hover:translate-x-0.5 transition-transform">
-              <span>View Insights</span>
+              <span>Start Calibration</span>
               <ArrowRight className="w-3 h-3" />
             </div>
           </div>
-        </div>
+        </Link>
 
         {/* Inspirational Quote */}
         <div className="text-[11px] text-slate-400 font-handwriting italic px-1">
