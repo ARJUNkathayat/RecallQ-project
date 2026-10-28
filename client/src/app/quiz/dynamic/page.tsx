@@ -26,6 +26,8 @@ import {
   QuizDiagnosticResult,
   generateQuizQuestions,
   calculateQuizDiagnostics,
+  saveQuizHistory,
+  SavedQuizRecord,
 } from "@/lib/geminiQuizService";
 
 function DynamicQuizContent() {
@@ -118,6 +120,24 @@ function DynamicQuizContent() {
     const diag = calculateQuizDiagnostics(topic, confidence, questions, selectedAnswers);
     setDiagnosticResult(diag);
     setQuizSubmitted(true);
+
+    // Save to local storage for Analytics tab
+    const historyRecord: SavedQuizRecord = {
+      id: `attempt-${Date.now()}`,
+      topicName: topic,
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      timestamp: Date.now(),
+      accuracy: diag.accuracy,
+      confidence: diag.confidence,
+      confidenceGap: diag.confidenceGap,
+      correctCount: diag.correctCount,
+      totalQuestions: diag.totalQuestions,
+      masteryScore: diag.masteryScore,
+      forgettingRisk: diag.forgettingRisk,
+      weakSubtopics: diag.weakSubtopics,
+      subtopicBreakdown: diag.subtopicBreakdown,
+    };
+    saveQuizHistory(historyRecord);
 
     // Also attempt backend persistence silently
     try {

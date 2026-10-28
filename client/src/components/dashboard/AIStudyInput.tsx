@@ -51,11 +51,11 @@ export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = true;
-        recognition.lang = "en-US";
+        recognition.lang = navigator.language || "en-IN";
 
         recognition.onstart = () => {
           setIsListening(true);
-          setSpeechFeedback("Listening... speak what you studied!");
+          setSpeechFeedback("🎙️ Listening... speak clearly (e.g. 'Linked List')");
         };
 
         recognition.onresult = (event: any) => {
@@ -63,13 +63,23 @@ export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
             .map((res: any) => res[0].transcript)
             .join("");
           setTopic(transcript);
-          setSpeechFeedback(`Heard: "${transcript}"`);
+          setSpeechFeedback(`✓ Heard: "${transcript}"`);
         };
 
         recognition.onerror = (event: any) => {
-          console.warn("Speech recognition error:", event.error);
           setIsListening(false);
-          setSpeechFeedback("Voice input paused. You can also type directly.");
+          const err = event.error;
+          if (err === "network") {
+            setSpeechFeedback(
+              "Google Speech API service unreachable (blocked by browser/VPN/localhost). Please type topic directly or tap a suggestion below."
+            );
+          } else if (err === "not-allowed" || err === "permission-denied") {
+            setSpeechFeedback("Microphone access denied. Please allow microphone in browser URL bar.");
+          } else if (err === "no-speech") {
+            setSpeechFeedback("No speech detected. Please speak closer to your mic.");
+          } else {
+            setSpeechFeedback(`Speech paused (${err}). You can type your topic directly.`);
+          }
         };
 
         recognition.onend = () => {
@@ -83,16 +93,38 @@ export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
     }
   }, []);
 
-  const toggleVoiceListening = () => {
+  const toggleVoiceListening = async () => {
     if (!recognitionRef.current) return;
     if (isListening) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
       setIsListening(false);
     } else {
       try {
+        setSpeechFeedback("Requesting microphone permission...");
+        // Explicitly prompt for mic permission if not already granted on localhost
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach((track) => track.stop());
+          } catch (micErr: any) {
+            if (micErr.name === "NotAllowedError") {
+              setSpeechFeedback("Microphone permission denied. Allow mic in browser settings.");
+              return;
+            }
+          }
+        }
         recognitionRef.current.start();
-      } catch (err) {
-        console.warn("Error starting speech recognition:", err);
+      } catch (err: any) {
+        console.warn("Speech recognition start warning:", err);
+        // If already started, stop and restart
+        try {
+          recognitionRef.current.stop();
+          setTimeout(() => recognitionRef.current.start(), 200);
+        } catch (retryErr) {
+          setSpeechFeedback("Voice input unavailable. Please type your topic directly.");
+        }
       }
     }
   };

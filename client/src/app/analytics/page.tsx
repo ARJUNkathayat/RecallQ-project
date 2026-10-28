@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   BarChart3,
@@ -15,7 +16,10 @@ import {
   Award,
   Layers,
   ArrowUpRight,
-  Info
+  Info,
+  Calendar,
+  CheckCircle2,
+  Zap,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -32,12 +36,13 @@ import {
   Legend,
   Cell,
   PieChart,
-  Pie
+  Pie,
 } from "recharts";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import SearchModal from "@/components/dashboard/SearchModal";
 import DashboardFooter from "@/components/dashboard/DashboardFooter";
+import { getQuizHistory, SavedQuizRecord } from "@/lib/geminiQuizService";
 
 // Mock Analytical Datasets for Presentation
 const monthlyMasteryTrend = [
@@ -83,6 +88,33 @@ export default function AnalyticsPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [timeRange, setTimeRange] = useState("Last 6 Months");
+  const [userQuizzes, setUserQuizzes] = useState<SavedQuizRecord[]>([]);
+
+  useEffect(() => {
+    const history = getQuizHistory();
+    setUserQuizzes(history);
+  }, []);
+
+  // Merge real user quiz attempts into confidence vs accuracy dataset
+  const combinedQuizzes = [
+    ...userQuizzes.map((q) => ({
+      quiz: q.topicName.length > 14 ? q.topicName.substring(0, 12) + ".." : q.topicName,
+      confidence: q.confidence,
+      accuracy: q.accuracy,
+      gap: q.confidenceGap,
+    })),
+    ...confidenceVsAccuracyQuizzes,
+  ];
+
+  const totalQuizzesCount = 28 + userQuizzes.length;
+  const highRiskCount = 3 + userQuizzes.filter((q) => q.forgettingRisk === "HIGH").length;
+  const avgGap =
+    userQuizzes.length > 0
+      ? (
+          (6.2 * 28 + userQuizzes.reduce((acc, q) => acc + q.confidenceGap, 0)) /
+          (28 + userQuizzes.length)
+        ).toFixed(1)
+      : "6.2";
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex font-sans antialiased text-slate-900">
@@ -138,10 +170,28 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
             {[
               { label: "Overall Mastery", val: "78%", sub: "+12% this term", icon: Award, color: "text-indigo-600 bg-indigo-50" },
-              { label: "Quizzes Completed", val: "28", sub: "92% completion rate", icon: BookOpen, color: "text-blue-600 bg-blue-50" },
-              { label: "Avg Confidence Gap", val: "6.2%", sub: "Well calibrated", icon: Target, color: "text-emerald-600 bg-emerald-50" },
+              {
+                label: "Quizzes Completed",
+                val: `${totalQuizzesCount}`,
+                sub: userQuizzes.length > 0 ? `+${userQuizzes.length} custom AI quizzes` : "92% completion rate",
+                icon: BookOpen,
+                color: "text-blue-600 bg-blue-50",
+              },
+              {
+                label: "Avg Confidence Gap",
+                val: `${avgGap}%`,
+                sub: Number(avgGap) < 15 ? "Well calibrated" : "Overconfidence risk",
+                icon: Target,
+                color: "text-emerald-600 bg-emerald-50",
+              },
               { label: "Revisions Done", val: "14", sub: "+38% retention lift", icon: RefreshCw, color: "text-purple-600 bg-purple-50" },
-              { label: "At-Risk Topics", val: "3", sub: "Requires attention", icon: AlertTriangle, color: "text-red-600 bg-red-50" }
+              {
+                label: "At-Risk Topics",
+                val: `${highRiskCount}`,
+                sub: "Requires attention",
+                icon: AlertTriangle,
+                color: "text-red-600 bg-red-50",
+              },
             ].map((metric) => {
               const Icon = metric.icon;
               return (
@@ -261,7 +311,7 @@ export default function AnalyticsPage() {
 
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={confidenceVsAccuracyQuizzes} margin={{ top: 15, right: 10, left: -20, bottom: 5 }}>
+                <BarChart data={combinedQuizzes} margin={{ top: 15, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="quiz" tick={{ fontSize: 11, fill: "#475569" }} axisLine={{ stroke: "#e2e8f0" }} />
                   <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => `${v}%`} axisLine={false} />
@@ -284,6 +334,136 @@ export default function AnalyticsPage() {
                 </p>
               </div>
             </div>
+          </div>
+
+          {/* YOUR AI DIAGNOSTIC ATTEMPTS & SUBTOPIC BREAKDOWN (Real-time student history) */}
+          <div className="p-6 sm:p-7 rounded-3xl bg-white border border-slate-200/80 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold uppercase tracking-wider mb-1">
+                  <Sparkles className="w-3 h-3" />
+                  <span>Real-Time Diagnostic History</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-950">
+                  Your AI MCQ Assessments & Granular Weak Spots
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Every quiz you take dynamically registers its score, confidence calibration, and weak subtopics here.
+                </p>
+              </div>
+
+              <Link
+                href="/dashboard"
+                className="px-4 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 self-start sm:self-auto"
+              >
+                <span>Take New AI Quiz</span>
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+              </Link>
+            </div>
+
+            {userQuizzes.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-slate-50/80 border border-dashed border-slate-200 text-center space-y-3">
+                <Brain className="w-10 h-10 text-indigo-400 mx-auto" />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">No Custom AI Quizzes Taken Yet</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    Type or speak any topic (e.g. &ldquo;Linked List&rdquo;, &ldquo;French Revolution&rdquo;, &ldquo;Three-Phase Induction Motor&rdquo;) on your Dashboard to generate your first adaptive assessment!
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md transition-all"
+                >
+                  <span>Go to Dashboard & Start Quiz</span>
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {userQuizzes.map((attempt) => (
+                  <div
+                    key={attempt.id}
+                    className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:bg-white transition-all shadow-2xs flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>{attempt.date}</span>
+                        </span>
+
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                            attempt.forgettingRisk === "HIGH"
+                              ? "bg-red-50 text-red-700 border-red-200"
+                              : attempt.forgettingRisk === "MEDIUM"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          }`}
+                        >
+                          {attempt.forgettingRisk} RISK
+                        </span>
+                      </div>
+
+                      <h4 className="text-base font-black text-slate-950 mt-1.5 tracking-tight">
+                        {attempt.topicName}
+                      </h4>
+
+                      <div className="flex items-center gap-4 mt-2 text-xs">
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Accuracy</span>
+                          <span className="font-black text-blue-600">{attempt.accuracy}%</span>
+                        </div>
+                        <div className="w-px h-6 bg-slate-200" />
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Confidence</span>
+                          <span className="font-black text-indigo-600">{attempt.confidence}%</span>
+                        </div>
+                        <div className="w-px h-6 bg-slate-200" />
+                        <div>
+                          <span className="text-slate-400 text-[10px] block">Gap</span>
+                          <span className={`font-black ${attempt.confidenceGap >= 15 ? "text-red-600" : "text-emerald-600"}`}>
+                            {attempt.confidenceGap}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Subtopic Weak Spots */}
+                    <div className="pt-2.5 border-t border-slate-200/70">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                        Identified Weak Subtopics:
+                      </span>
+                      {attempt.weakSubtopics && attempt.weakSubtopics.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {attempt.weakSubtopics.map((sub, sIdx) => (
+                            <span
+                              key={sIdx}
+                              className="px-2 py-0.5 rounded-md bg-red-50 text-red-700 border border-red-200 text-[10px] font-semibold"
+                            >
+                              {sub}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>All tested subtopics mastered!</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="pt-2">
+                      <Link
+                        href={`/quiz/dynamic?topic=${encodeURIComponent(attempt.topicName)}&confidence=${attempt.confidence}&count=${attempt.totalQuestions}`}
+                        className="w-full py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold text-center block transition-all"
+                      >
+                        Retake / Practice This Topic
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ROW 3: Risk Distribution Donut + Spaced Revision Impact */}

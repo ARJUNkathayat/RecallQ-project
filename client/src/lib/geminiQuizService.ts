@@ -37,6 +37,43 @@ export interface QuizDiagnosticResult {
   isCalibrated: boolean;
 }
 
+export interface SavedQuizRecord {
+  id: string;
+  topicName: string;
+  date: string;
+  timestamp: number;
+  accuracy: number;
+  confidence: number;
+  confidenceGap: number;
+  correctCount: number;
+  totalQuestions: number;
+  masteryScore: number;
+  forgettingRisk: "LOW" | "MEDIUM" | "HIGH";
+  weakSubtopics: string[];
+  subtopicBreakdown: SubtopicDiagnostic[];
+}
+
+export function saveQuizHistory(record: SavedQuizRecord): void {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = getQuizHistory();
+    const updated = [record, ...existing.filter((r) => r.id !== record.id)].slice(0, 50);
+    localStorage.setItem("recallq_quiz_history", JSON.stringify(updated));
+  } catch (e) {
+    console.warn("Failed to save quiz to localStorage:", e);
+  }
+}
+
+export function getQuizHistory(): SavedQuizRecord[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const data = localStorage.getItem("recallq_quiz_history");
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
 const GEMINI_API_KEY =
   process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
 
