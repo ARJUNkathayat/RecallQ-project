@@ -1,7 +1,13 @@
 import { Router } from "express";
 import { register, login, getMe } from "../controllers/authController.js";
 import { getSubjects, getSubjectById, getTopicById } from "../controllers/subjectController.js";
-import { getQuiz, submitQuizAttempt } from "../controllers/quizController.js";
+import {
+  getQuiz,
+  submitQuizAttempt,
+  generateDynamicQuiz,
+  submitDynamicQuizAttempt,
+  generateReQuiz,
+} from "../controllers/quizController.js";
 import { getDashboardOverview } from "../controllers/dashboardController.js";
 import { getRevisionQueue, completeRevision } from "../controllers/revisionController.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -31,6 +37,11 @@ apiRouter.get("/topics/:id", getTopicById);
 // Quiz & Adaptive Confidence Routes
 apiRouter.get("/quizzes/:id", getQuiz);
 apiRouter.post("/quizzes/:id/attempt", requireAuth, submitQuizAttempt);
+
+// Universal AI Topic & Diagnostic Routes
+apiRouter.post("/quizzes/generate-dynamic", generateDynamicQuiz);
+apiRouter.post("/quizzes/submit-dynamic", submitDynamicQuizAttempt);
+apiRouter.post("/quizzes/requiz", generateReQuiz);
 
 // Student Dashboard Routes
 apiRouter.get("/dashboard", getDashboardOverview);

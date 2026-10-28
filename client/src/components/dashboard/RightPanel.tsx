@@ -17,7 +17,7 @@ import { motion } from "framer-motion";
 export default function RightPanel() {
   const quickActions = [
     { title: "Study a Topic", icon: BookOpen, color: "text-blue-600 bg-blue-50 border-blue-100", href: "/subjects" },
-    { title: "Take a Quiz", icon: FileQuestion, color: "text-purple-600 bg-purple-50 border-purple-100", href: "/quiz/binary-trees/confidence" },
+    { title: "Take a Quiz", icon: FileQuestion, color: "text-purple-600 bg-purple-50 border-purple-100", href: "/quiz/dynamic?topic=Linked%20List&confidence=75&count=20" },
     { title: "View Analytics", icon: BarChart3, color: "text-emerald-600 bg-emerald-50 border-emerald-100", href: "/analytics" },
     { title: "Revision Plan", icon: Calendar, color: "text-indigo-600 bg-indigo-50 border-indigo-100", href: "/revision" }
   ];

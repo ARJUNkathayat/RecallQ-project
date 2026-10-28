@@ -13,6 +13,7 @@ import RightPanel from "@/components/dashboard/RightPanel";
 import StudyBanner from "@/components/dashboard/StudyBanner";
 import SearchModal from "@/components/dashboard/SearchModal";
 import DashboardFooter from "@/components/dashboard/DashboardFooter";
+import AIStudyInput from "@/components/dashboard/AIStudyInput";
 
 export default function DashboardPage() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -77,6 +78,9 @@ export default function DashboardPage() {
               Thu, 18 Sep 2026
             </div>
           </div>
+
+          {/* AI Universal Diagnostic & Speech Topic Generator */}
+          <AIStudyInput />
 
           {/* 4 Top Stat Cards */}
           <StatCards />

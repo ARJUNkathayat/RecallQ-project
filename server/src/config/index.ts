@@ -7,6 +7,7 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
   nodeEnv: process.env.NODE_ENV || "development",
   corsOrigin: process.env.CORS_ORIGIN || "*",
+  geminiApiKey: process.env.GEMINI_API_KEY || "",
 };
 
 export default config;
