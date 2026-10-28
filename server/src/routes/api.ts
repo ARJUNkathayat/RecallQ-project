@@ -10,6 +10,7 @@ import {
 } from "../controllers/quizController.js";
 import { getDashboardOverview } from "../controllers/dashboardController.js";
 import { getRevisionQueue, completeRevision } from "../controllers/revisionController.js";
+import { analyzeUserProfile } from "../controllers/auditController.js";
 import { requireAuth } from "../middleware/auth.js";
 
 export const apiRouter = Router();
@@ -49,5 +50,8 @@ apiRouter.get("/dashboard", getDashboardOverview);
 // Spaced Revision Routes
 apiRouter.get("/revision", getRevisionQueue);
 apiRouter.post("/revision/:topicId/complete", requireAuth, completeRevision);
+
+// LeetCode & GitHub Cognitive Profiler & Audit Routes
+apiRouter.post("/audit/analyze", analyzeUserProfile);
 
 export default apiRouter;

@@ -12,7 +12,8 @@ import {
   BarChart3,
   User,
   ArrowRight,
-  Target
+  Target,
+  Code2,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -24,7 +25,8 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: Layers },
-    { name: "Adaptive Quiz", href: "/quiz/binary-trees", icon: Target },
+    { name: "Adaptive Quiz", href: "/quiz/dynamic?topic=Linked%20List&confidence=75&count=20", icon: Target },
+    { name: "Code & DSA Audit", href: "/analyzer", icon: Code2, badge: "AI" },
     { name: "Subjects", href: "/subjects", icon: BookOpen },
     { name: "Revision", href: "/revision", icon: RefreshCw },
     { name: "Analytics", href: "/analytics", icon: BarChart3 },
@@ -74,7 +76,13 @@ export default function Sidebar({ onCloseMobile }: SidebarProps) {
                     isActive ? "text-indigo-600" : "text-slate-400"
                   }`}
                 />
-                <span>{item.name}</span>
+                <span className="flex-1">{item.name}</span>
+
+                {item.badge && (
+                  <span className="px-1.5 py-0.2 rounded-md bg-indigo-50 text-indigo-700 text-[9px] font-black border border-indigo-200/80">
+                    {item.badge}
+                  </span>
+                )}
 
                 {isActive && (
                   <motion.div
