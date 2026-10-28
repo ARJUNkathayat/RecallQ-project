@@ -37,10 +37,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-// Start Server
-app.listen(config.port, () => {
-  console.log(`[RecallIQ API] Server actively listening on port ${config.port}`);
-  console.log(`[RecallIQ API] Environment: ${config.nodeEnv}`);
-});
+// Start Server (only when not in Vercel serverless environment)
+if (!process.env.VERCEL) {
+  app.listen(config.port, () => {
+    console.log(`[RecallIQ API] Server actively listening on port ${config.port}`);
+    console.log(`[RecallIQ API] Environment: ${config.nodeEnv}`);
+  });
+}
 
 export default app;
