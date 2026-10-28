@@ -101,7 +101,170 @@ export async function runProfileAudit(
     githubUsername.trim() ? fetchClientGitHub(githubUsername.trim()) : Promise.resolve(null),
   ]);
 
+  // 3. Directly invoke Gemini AI with real fetched telemetry
+  try {
+    const aiAudit = await runClientGeminiAudit(lc, gh);
+    if (aiAudit) return aiAudit;
+  } catch (aiErr) {
+    console.warn("Client Gemini audit error:", aiErr);
+  }
+
+  // 4. Dynamic rule-based fallback based on actual lowest-solved tags
   return generateClientAudit(lc, gh);
+}
+
+const CANDIDATE_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.8-flash",
+  "gemini-flash-latest",
+  "gemini-2.5-flash-lite",
+];
+
+async function runClientGeminiAudit(
+  lc: LeetCodeStats | null,
+  gh: GitHubStats | null
+): Promise<CognitiveAuditResult | null> {
+  const apiKey = GEMINI_API_KEY;
+  if (!apiKey) return null;
+
+  const lcDetails = lc
+    ? `LeetCode Username: ${lc.username}
+Total Solved: ${lc.totalSolved} (Easy: ${lc.easySolved}, Medium: ${lc.mediumSolved}, Hard: ${lc.hardSolved})
+Global Ranking: #${lc.ranking}
+Actual Solved Counts by Topic Tag:
+${lc.tags.map((t) => `- ${t.tagName}: ${t.problemsSolved} problems solved`).join("\n")}`
+    : "LeetCode: Not provided";
+
+  const ghDetails = gh
+    ? `GitHub Username: ${gh.username}
+Public Repositories: ${gh.publicRepos}
+Followers: ${gh.followers}
+Languages: ${gh.languages.map((l) => `${l.language} (${l.percentage}%)`).join(", ")}
+Recent Repositories:
+${gh.topRepos.map((r) => `- ${r.name} (${r.language}): ${r.description} [${r.stars}⭐]`).join("\n")}`
+    : "GitHub: Not provided";
+
+  const prompt = `You are a Principal Software Engineer and Technical Screener at a top tier tech company.
+Analyze this developer's actual live data:
+
+${lcDetails}
+${ghDetails}
+
+CRITICAL RULES:
+1. Examine which specific topic tags have the absolute LOWEST problems solved (e.g. if Trie has 0 or Graph has 1 or DP has 2 or Greedy has 0).
+2. For each weak spot, diagnose why that exact topic causes failures in technical coding interviews and recommend curated problems targeting THOSE exact lowest tags.
+3. Review their actual GitHub repositories (e.g. check if they have automated tests, CI workflows, clear documentation).
+4. Assign PASS, WARN, or FAIL on the engineering checklist dynamically based on their actual numbers.
+
+Respond strictly with valid JSON:
+{
+  "readinessScore": 72,
+  "headline": "concise 1-sentence evaluation",
+  "strengths": ["string", "string", "string"],
+  "weakSpots": [
+    {
+      "topic": "string (the actual lowest tag)",
+      "type": "DSA" or "ENGINEERING",
+      "severity": "CRITICAL" or "HIGH" or "MEDIUM",
+      "diagnosis": "exact diagnosis",
+      "suggestedFix": "actionable fix"
+    }
+  ],
+  "curatedProblems": [
+    {
+      "title": "exact problem name",
+      "difficulty": "Easy" or "Medium" or "Hard",
+      "tag": "matching weak tag",
+      "leetcodeUrl": "https://leetcode.com/problems/...",
+      "reason": "why this problem fixes the gap",
+      "takeawayRule": "1-sentence mental model invariant"
+    }
+  ],
+  "engineeringChecklist": [
+    {
+      "metric": "Automated Unit & Integration Testing",
+      "status": "PASS" or "WARN" or "FAIL",
+      "detail": "evaluation based on real repos"
+    },
+    {
+      "metric": "CI/CD & Deployment",
+      "status": "PASS" or "WARN" or "FAIL",
+      "detail": "evaluation"
+    },
+    {
+      "metric": "Algorithmic Breadth",
+      "status": "PASS" or "WARN" or "FAIL",
+      "detail": "evaluation based on solved tags"
+    },
+    {
+      "metric": "Codebase Structure & Commits",
+      "status": "PASS" or "WARN" or "FAIL",
+      "detail": "evaluation"
+    }
+  ],
+  "roadmapPhases": [
+    {
+      "phase": "Phase 1: Blind Spot Remediation",
+      "focus": "string",
+      "actionItems": ["string"],
+      "duration": "Week 1"
+    },
+    {
+      "phase": "Phase 2: Code Quality",
+      "focus": "string",
+      "actionItems": ["string"],
+      "duration": "Week 2"
+    },
+    {
+      "phase": "Phase 3: High-Frequency Patterns",
+      "focus": "string",
+      "actionItems": ["string"],
+      "duration": "Week 3"
+    },
+    {
+      "phase": "Phase 4: Mock Readiness",
+      "focus": "string",
+      "actionItems": ["string"],
+      "duration": "Week 4"
+    }
+  ]
+}`;
+
+  for (const model of CANDIDATE_MODELS) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.2 },
+        }),
+      });
+
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data: any = await res.json();
+        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return {
+            leetcode: lc || undefined,
+            github: gh || undefined,
+            ...parsed,
+          };
+        }
+      }
+    } catch (e) {
+      // try next candidate model
+    }
+  }
+
+  return null;
 }
 
 async function fetchClientLeetCode(username: string): Promise<LeetCodeStats | null> {
@@ -222,30 +385,41 @@ function generateClientAudit(lc: LeetCodeStats | null, gh: GitHubStats | null): 
   const totalSolved = lc?.totalSolved || 85;
   const readiness = Math.min(94, Math.max(52, Math.round((totalSolved / 220) * 100)));
 
+  // Dynamically isolate the candidate's real lowest-solved tags
+  const sortedTags = lc?.tags ? [...lc.tags].sort((a, b) => a.problemsSolved - b.problemsSolved) : [];
+  const weakTag1 = sortedTags[0]?.tagName || "Dynamic Programming";
+  const weakTag1Solved = sortedTags[0]?.problemsSolved ?? 1;
+
+  const weakTag2 = sortedTags[1]?.tagName || "Graph Theory";
+  const weakTag2Solved = sortedTags[1]?.problemsSolved ?? 2;
+
+  const weakTag3 = sortedTags[2]?.tagName || "Trie";
+  const weakTag3Solved = sortedTags[2]?.problemsSolved ?? 0;
+
   return {
     leetcode: lc || undefined,
     github: gh || undefined,
     readinessScore: readiness,
-    headline: "Solid algorithmic baseline with critical conceptual blind spots in Graph cycles and Dynamic Programming.",
+    headline: `Telemetry highlights active momentum in linear data structures, but severe topic deficits in ${weakTag1} (${weakTag1Solved} solved) and ${weakTag2} (${weakTag2Solved} solved).`,
     strengths: [
-      `Completed ${totalSolved} total LeetCode challenges with active problem-solving momentum`,
-      gh ? `Public engineering portfolio on GitHub with ${gh.publicRepos} public repositories` : "Active hands-on coding foundation",
-      "Strong proficiency in foundational array operations and hashing techniques",
+      `Completed ${totalSolved} total LeetCode challenges (${lc?.mediumSolved || 38} Mediums)`,
+      gh ? `Public portfolio on GitHub with ${gh.publicRepos} public repositories` : "Active hands-on code development",
+      "Demonstrated ability to solve fundamental Array and String problems under standard time constraints",
     ],
     weakSpots: [
       {
-        topic: "Dynamic Programming (State Transitions)",
+        topic: `${weakTag1} (${weakTag1Solved} solved)`,
         type: "DSA",
         severity: "CRITICAL",
-        diagnosis: "Under-represented in your solved distribution. Lacks practice in identifying optimal substructure and 1D/2D memoization tables.",
-        suggestedFix: "Solve foundational 1D/2D DP problems focusing on recurrence relations before optimizing space.",
+        diagnosis: `Only ${weakTag1Solved} problems solved in ${weakTag1}. This represents a severe blind spot in technical interview rounds where this topic is frequently screened.`,
+        suggestedFix: `Practice 5 foundational problems in ${weakTag1} focusing on core invariants before moving to advanced variations.`,
       },
       {
-        topic: "Graph Theory (Cycle & Topological Sort)",
+        topic: `${weakTag2} (${weakTag2Solved} solved)`,
         type: "DSA",
         severity: "HIGH",
-        diagnosis: "Low exposure to directed acyclic graph (DAG) cycle detection and dependency resolution algorithms.",
-        suggestedFix: "Master Kahn's BFS algorithm and DFS color-marking states on directed graphs.",
+        diagnosis: `Under-indexed in ${weakTag2} with only ${weakTag2Solved} solved. Common interview questions requiring ${weakTag2} will pose high cognitive friction.`,
+        suggestedFix: `Implement classic traversal and search patterns for ${weakTag2} until mental models become intuitive.`,
       },
       {
         topic: "Automated Testing & CI/CD Pipelines",
@@ -255,37 +429,29 @@ function generateClientAudit(lc: LeetCodeStats | null, gh: GitHubStats | null): 
         suggestedFix: "Implement unit testing and automated GitHub Actions workflows across primary repositories.",
       },
       {
-        topic: "Tree Lowest Common Ancestor & Diameter",
+        topic: `${weakTag3} (${weakTag3Solved} solved)`,
         type: "DSA",
         severity: "MEDIUM",
-        diagnosis: "Needs reinforcement on postorder bottom-up value propagation in unbalanced trees.",
-        suggestedFix: "Practice single-pass recursive postorder traversals on binary trees.",
+        diagnosis: `Low practice frequency in ${weakTag3} (${weakTag3Solved} solved). Reviewing edge cases is recommended.`,
+        suggestedFix: `Solve 3 targeted medium-difficulty problems in ${weakTag3}.`,
       },
     ],
     curatedProblems: [
       {
-        title: "207. Course Schedule",
+        title: weakTag1 === "Trie" ? "208. Implement Trie (Prefix Tree)" : weakTag1 === "Graph Theory" || weakTag1 === "Graph" ? "207. Course Schedule" : "322. Coin Change",
         difficulty: "Medium",
-        tag: "Graph Theory",
-        leetcodeUrl: "https://leetcode.com/problems/course-schedule/",
-        reason: "Directly tests cycle detection in directed graphs using in-degree reduction (Kahn's algorithm).",
-        takeawayRule: "If in-degree reduces to zero for all nodes, the dependency graph is acyclic (DAG).",
+        tag: weakTag1,
+        leetcodeUrl: `https://leetcode.com/problemset/all/?topicSlugs=${encodeURIComponent(sortedTags[0]?.tagSlug || "dynamic-programming")}`,
+        reason: `Directly targets your lowest-solved tag (${weakTag1}) to build intuition and eliminate interview failure risks.`,
+        takeawayRule: `Model ${weakTag1} subproblems systematically before writing code.`,
       },
       {
-        title: "322. Coin Change",
+        title: weakTag2 === "Graph Theory" || weakTag2 === "Graph" ? "207. Course Schedule" : "236. Lowest Common Ancestor of a Binary Tree",
         difficulty: "Medium",
-        tag: "Dynamic Programming",
-        leetcodeUrl: "https://leetcode.com/problems/coin-change/",
-        reason: "Core state transition formula dp[i] = min(dp[i], dp[i - coin] + 1) modeling optimal substructure.",
-        takeawayRule: "Initialize DP array with amount + 1 to safely represent unreachable amount states.",
-      },
-      {
-        title: "236. Lowest Common Ancestor of a Binary Tree",
-        difficulty: "Medium",
-        tag: "Binary Tree",
-        leetcodeUrl: "https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/",
-        reason: "Tests bottom-up recursive signal propagation in O(N) linear time.",
-        takeawayRule: "When left and right recursive calls both return non-null, current node is the LCA boundary.",
+        tag: weakTag2,
+        leetcodeUrl: `https://leetcode.com/problemset/all/?topicSlugs=${encodeURIComponent(sortedTags[1]?.tagSlug || "graph")}`,
+        reason: `Addresses your second lowest tag (${weakTag2}) where you have only ${weakTag2Solved} solved problems.`,
+        takeawayRule: `Trace cycle detection and boundary conditions step-by-step.`,
       },
       {
         title: "141. Linked List Cycle",
