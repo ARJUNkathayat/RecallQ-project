@@ -61,8 +61,7 @@ export interface CognitiveAuditResult {
   }>;
 }
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+import { API_BASE_URL } from "./apiConfig";
 
 const GEMINI_API_KEY =
   process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";

@@ -74,11 +74,10 @@ export function getQuizHistory(): SavedQuizRecord[] {
   }
 }
 
+import { API_BASE_URL } from "./apiConfig";
+
 const GEMINI_API_KEY =
   process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 const CANDIDATE_MODELS = [
   "gemini-3.5-flash-lite",
