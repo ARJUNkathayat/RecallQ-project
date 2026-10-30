@@ -14,8 +14,10 @@ import {
   BookOpen,
   LineChart,
   Target,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
+import { API_BASE_URL } from "@/lib/apiConfig";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -23,13 +25,39 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setLoading(true);
-    setTimeout(() => {
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Login failed. Check your email or password.");
+      }
+
+      if (data.token) {
+        localStorage.setItem("recallq_token", data.token);
+        localStorage.setItem("recallq_user", JSON.stringify(data.user));
+      }
+
       window.location.href = "/dashboard";
-    }, 800);
+    } catch (err: any) {
+      setError(err.message || "Failed to connect to authentication server.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -85,6 +113,12 @@ export default function LoginPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+            {error && (
+              <div className="p-3 text-xs bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{error}</span>
+              </div>
+            )}
             
             {/* Email Input */}
             <div>

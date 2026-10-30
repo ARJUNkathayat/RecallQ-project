@@ -15,8 +15,10 @@ import {
   CheckCircle2,
   TrendingUp,
   Award,
-  ChevronDown
+  ChevronDown,
+  AlertCircle
 } from "lucide-react";
+import { API_BASE_URL } from "@/lib/apiConfig";
 
 const interestsList = [
   "DSA",
@@ -38,6 +40,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const toggleInterest = (item: string) => {
     if (selectedInterests.includes(item)) {
@@ -47,12 +50,51 @@ export default function RegisterPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          branch,
+          year,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Registration failed.");
+      }
+
+      if (data.token) {
+        localStorage.setItem("recallq_token", data.token);
+        localStorage.setItem("recallq_user", JSON.stringify(data.user));
+      }
+
       window.location.href = "/dashboard";
-    }, 800);
+    } catch (err: any) {
+      setError(err.message || "Failed to register account.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -108,6 +150,12 @@ export default function RegisterPage() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="mt-6 space-y-3.5">
+            {error && (
+              <div className="p-3 text-xs bg-rose-50 border border-rose-200 text-rose-700 rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{error}</span>
+              </div>
+            )}
             
             {/* Full Name */}
             <div>
