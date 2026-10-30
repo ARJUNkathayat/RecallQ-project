@@ -53,12 +53,27 @@ export interface SavedQuizRecord {
   subtopicBreakdown: SubtopicDiagnostic[];
 }
 
+function getUserQuizStorageKey(): string {
+  if (typeof window === "undefined") return "recallq_quiz_history";
+  try {
+    const raw = localStorage.getItem("recallq_user");
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u.email) {
+        return `recallq_quiz_history_${u.email.toLowerCase().trim()}`;
+      }
+    }
+  } catch (e) {}
+  return "recallq_quiz_history";
+}
+
 export function saveQuizHistory(record: SavedQuizRecord): void {
   if (typeof window === "undefined") return;
   try {
+    const key = getUserQuizStorageKey();
     const existing = getQuizHistory();
     const updated = [record, ...existing.filter((r) => r.id !== record.id)].slice(0, 50);
-    localStorage.setItem("recallq_quiz_history", JSON.stringify(updated));
+    localStorage.setItem(key, JSON.stringify(updated));
   } catch (e) {
     console.warn("Failed to save quiz to localStorage:", e);
   }
@@ -67,8 +82,15 @@ export function saveQuizHistory(record: SavedQuizRecord): void {
 export function getQuizHistory(): SavedQuizRecord[] {
   if (typeof window === "undefined") return [];
   try {
-    const data = localStorage.getItem("recallq_quiz_history");
-    return data ? JSON.parse(data) : [];
+    const key = getUserQuizStorageKey();
+    const data = localStorage.getItem(key);
+    if (data) return JSON.parse(data);
+    // If Arjun or legacy unauthenticated, check legacy key
+    if (key.includes("arjun") || key === "recallq_quiz_history") {
+      const legacy = localStorage.getItem("recallq_quiz_history");
+      if (legacy) return JSON.parse(legacy);
+    }
+    return [];
   } catch (e) {
     return [];
   }

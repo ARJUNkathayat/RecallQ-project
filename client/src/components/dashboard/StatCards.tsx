@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   GraduationCap,
@@ -8,8 +8,11 @@ import {
   BookOpen,
   Flame,
   TrendingUp,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles
 } from "lucide-react";
+import { isArjunUser, getCurrentUser } from "@/lib/authHelper";
+import { getQuizHistory } from "@/lib/geminiQuizService";
 
 interface StatCardProps {
   icon: React.ElementType;
@@ -80,39 +83,116 @@ function StatCard({
 }
 
 export default function StatCards() {
+  const [statsData, setStatsData] = useState<{
+    mastery: string;
+    masteryTrend: string;
+    masteryType: "positive" | "negative" | "streak";
+    riskCount: string;
+    riskTrend: string;
+    riskType: "positive" | "negative" | "streak";
+    topicsCount: string;
+    topicsTrend: string;
+    topicsType: "positive" | "negative" | "streak";
+    streak: string;
+    streakTrend: string;
+    streakType: "positive" | "negative" | "streak";
+  }>({
+    mastery: "78%",
+    masteryTrend: "12% from last month",
+    masteryType: "positive",
+    riskCount: "5",
+    riskTrend: "2 from last week",
+    riskType: "negative",
+    topicsCount: "24",
+    topicsTrend: "6 this month",
+    topicsType: "positive",
+    streak: "7 days",
+    streakTrend: "Keep it going!",
+    streakType: "streak",
+  });
+
+  useEffect(() => {
+    try {
+      const u = getCurrentUser();
+      const isArjun = isArjunUser(u);
+
+      if (!isArjun) {
+        // New user stats calculation
+        const history = getQuizHistory();
+        const total = history.length;
+        const uniqueTopics = new Set(history.map((h) => h.topicName)).size;
+        const atRisk = history.filter((h) => (h.accuracy || 0) < 60).length;
+        const streakDays = u?.streak || 1;
+
+        if (total === 0) {
+          setStatsData({
+            mastery: "New Learner",
+            masteryTrend: "Ready for first quiz",
+            masteryType: "positive",
+            riskCount: "0",
+            riskTrend: "No topics at risk",
+            riskType: "positive",
+            topicsCount: "0",
+            topicsTrend: "Start your journey",
+            topicsType: "positive",
+            streak: `${streakDays} day`,
+            streakTrend: "Day 1 streak",
+            streakType: "streak",
+          });
+        } else {
+          const avgAcc = Math.round(history.reduce((a, b) => a + (b.accuracy || 0), 0) / total);
+          setStatsData({
+            mastery: `${avgAcc}%`,
+            masteryTrend: `Across ${total} quizzes`,
+            masteryType: avgAcc >= 70 ? "positive" : "negative",
+            riskCount: String(atRisk),
+            riskTrend: atRisk > 0 ? "Needs revision" : "Zero decay",
+            riskType: atRisk > 0 ? "negative" : "positive",
+            topicsCount: String(uniqueTopics),
+            topicsTrend: `${total} attempts total`,
+            topicsType: "positive",
+            streak: `${streakDays} ${streakDays === 1 ? "day" : "days"}`,
+            streakTrend: "Keep it going!",
+            streakType: "streak",
+          });
+        }
+      }
+    } catch (e) {}
+  }, []);
+
   const stats = [
     {
       title: "Overall Mastery",
-      value: "78%",
-      trend: "12% from last month",
-      trendType: "positive" as const,
+      value: statsData.mastery,
+      trend: statsData.masteryTrend,
+      trendType: statsData.masteryType,
       icon: GraduationCap,
       iconColor: "text-blue-600",
       iconBg: "bg-blue-50"
     },
     {
       title: "Topics at Risk",
-      value: "5",
-      trend: "2 from last week",
-      trendType: "negative" as const,
+      value: statsData.riskCount,
+      trend: statsData.riskTrend,
+      trendType: statsData.riskType,
       icon: AlertTriangle,
       iconColor: "text-red-600",
       iconBg: "bg-red-50"
     },
     {
       title: "Topics Studied",
-      value: "24",
-      trend: "6 this month",
-      trendType: "positive" as const,
+      value: statsData.topicsCount,
+      trend: statsData.topicsTrend,
+      trendType: statsData.topicsType,
       icon: BookOpen,
       iconColor: "text-purple-600",
       iconBg: "bg-purple-50"
     },
     {
       title: "Current Streak",
-      value: "7 days",
-      trend: "Keep it going!",
-      trendType: "streak" as const,
+      value: statsData.streak,
+      trend: statsData.streakTrend,
+      trendType: statsData.streakType,
       icon: Flame,
       iconColor: "text-amber-600",
       iconBg: "bg-amber-50"

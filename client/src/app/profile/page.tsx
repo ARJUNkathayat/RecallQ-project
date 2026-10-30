@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   User,
@@ -27,6 +27,8 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import SearchModal from "@/components/dashboard/SearchModal";
 import DashboardFooter from "@/components/dashboard/DashboardFooter";
+import { isArjunUser } from "@/lib/authHelper";
+import { getQuizHistory } from "@/lib/geminiQuizService";
 
 export default function ProfilePage() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -43,20 +45,119 @@ export default function ProfilePage() {
   const [retentionTarget, setRetentionTarget] = useState("80% Baseline");
   const [notifications, setNotifications] = useState(true);
   const [spacedAlerts, setSpacedAlerts] = useState(true);
+  const [isArjun, setIsArjun] = useState(true);
+  const [userStats, setUserStats] = useState({
+    quizzesCompleted: 28,
+    spacedRevisions: 14,
+    avgAccuracy: 84,
+    avgConfidence: 88,
+    topicsMastered: 18,
+    currentStreak: 7,
+  });
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("recallq_user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u.name) setName(u.name);
+        if (u.email) setEmail(u.email);
+        if (u.branch) setBranch(u.branch);
+        if (u.year) setYear(u.year);
+        if (u.college) setCollege(u.college);
+
+        const checkArjun = isArjunUser(u);
+        setIsArjun(checkArjun);
+
+        if (!checkArjun) {
+          // Dynamic calculation for new registered user
+          const history = getQuizHistory();
+          const totalQuizzes = history.length;
+          const avgAcc = totalQuizzes > 0
+            ? Math.round(history.reduce((a, b) => a + (b.accuracy || 0), 0) / totalQuizzes)
+            : 0;
+          const avgConf = totalQuizzes > 0
+            ? Math.round(history.reduce((a, b) => a + (b.confidence || 0), 0) / totalQuizzes)
+            : 0;
+          const masteredCount = history.filter((h) => (h.accuracy || 0) >= 80).length;
+
+          setUserStats({
+            quizzesCompleted: totalQuizzes,
+            spacedRevisions: Math.floor(totalQuizzes / 2),
+            avgAccuracy: avgAcc,
+            avgConfidence: avgConf,
+            topicsMastered: masteredCount,
+            currentStreak: u.streak || 1,
+          });
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      const stored = localStorage.getItem("recallq_user");
+      const current = stored ? JSON.parse(stored) : {};
+      const updated = {
+        ...current,
+        name,
+        email,
+        branch,
+        year,
+        college,
+      };
+      localStorage.setItem("recallq_user", JSON.stringify(updated));
+    } catch (err) {}
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
+  const initials = name
+    .split(" ")
+    .map((n) => n[0])
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "U";
+
   const statBadges = [
-    { label: "Quizzes Completed", value: "28", icon: BookOpen, color: "text-blue-600 bg-blue-50 border-blue-100" },
-    { label: "Spaced Revisions", value: "14", icon: RefreshCw, color: "text-purple-600 bg-purple-50 border-purple-100" },
-    { label: "Avg Accuracy", value: "84%", icon: Target, color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-    { label: "Avg Confidence", value: "88%", icon: Sparkles, color: "text-indigo-600 bg-indigo-50 border-indigo-100" },
-    { label: "Topics Mastered", value: "18", icon: Award, color: "text-amber-600 bg-amber-50 border-amber-100" },
-    { label: "Current Streak", value: "7 Days", icon: Flame, color: "text-red-600 bg-red-50 border-red-100" }
+    {
+      label: "Quizzes Completed",
+      value: String(userStats.quizzesCompleted),
+      icon: BookOpen,
+      color: "text-blue-600 bg-blue-50 border-blue-100",
+    },
+    {
+      label: "Spaced Revisions",
+      value: String(userStats.spacedRevisions),
+      icon: RefreshCw,
+      color: "text-purple-600 bg-purple-50 border-purple-100",
+    },
+    {
+      label: "Avg Accuracy",
+      value: userStats.quizzesCompleted > 0 ? `${userStats.avgAccuracy}%` : (isArjun ? "84%" : "0%"),
+      icon: Target,
+      color: "text-emerald-600 bg-emerald-50 border-emerald-100",
+    },
+    {
+      label: "Avg Confidence",
+      value: userStats.quizzesCompleted > 0 ? `${userStats.avgConfidence}%` : (isArjun ? "88%" : "0%"),
+      icon: Sparkles,
+      color: "text-indigo-600 bg-indigo-50 border-indigo-100",
+    },
+    {
+      label: "Topics Mastered",
+      value: String(userStats.topicsMastered),
+      icon: Award,
+      color: "text-amber-600 bg-amber-50 border-amber-100",
+    },
+    {
+      label: "Current Streak",
+      value: `${userStats.currentStreak} ${userStats.currentStreak === 1 ? "Day" : "Days"}`,
+      icon: Flame,
+      color: "text-red-600 bg-red-50 border-red-100",
+    },
   ];
 
   return (
@@ -85,7 +186,7 @@ export default function ProfilePage() {
                 <div className="relative">
                   <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-blue-500 p-0.5 shadow-lg">
                     <div className="w-full h-full rounded-[1.4rem] bg-slate-950 flex items-center justify-center font-black text-white text-2xl">
-                      AK
+                      {initials}
                     </div>
                   </div>
                   <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-white text-[10px]">

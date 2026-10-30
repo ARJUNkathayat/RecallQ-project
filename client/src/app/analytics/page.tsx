@@ -43,6 +43,7 @@ import Header from "@/components/dashboard/Header";
 import SearchModal from "@/components/dashboard/SearchModal";
 import DashboardFooter from "@/components/dashboard/DashboardFooter";
 import { getQuizHistory, SavedQuizRecord } from "@/lib/geminiQuizService";
+import { isArjunUser, getCurrentUser } from "@/lib/authHelper";
 
 // Mock Analytical Datasets for Presentation
 const monthlyMasteryTrend = [
@@ -89,32 +90,61 @@ export default function AnalyticsPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [timeRange, setTimeRange] = useState("Last 6 Months");
   const [userQuizzes, setUserQuizzes] = useState<SavedQuizRecord[]>([]);
+  const [isArjun, setIsArjun] = useState(true);
 
   useEffect(() => {
-    const history = getQuizHistory();
-    setUserQuizzes(history);
+    try {
+      const u = getCurrentUser();
+      const checkArjun = isArjunUser(u);
+      setIsArjun(checkArjun);
+      const history = getQuizHistory();
+      setUserQuizzes(history);
+    } catch (e) {}
   }, []);
 
-  // Merge real user quiz attempts into confidence vs accuracy dataset
-  const combinedQuizzes = [
-    ...userQuizzes.map((q) => ({
-      quiz: q.topicName.length > 14 ? q.topicName.substring(0, 12) + ".." : q.topicName,
-      confidence: q.confidence,
-      accuracy: q.accuracy,
-      gap: q.confidenceGap,
-    })),
-    ...confidenceVsAccuracyQuizzes,
-  ];
+  // Real user quiz attempts or Arjun's presentation baseline
+  const combinedQuizzes = isArjun
+    ? [
+        ...userQuizzes.map((q) => ({
+          quiz: q.topicName.length > 14 ? q.topicName.substring(0, 12) + ".." : q.topicName,
+          confidence: q.confidence,
+          accuracy: q.accuracy,
+          gap: q.confidenceGap,
+        })),
+        ...confidenceVsAccuracyQuizzes,
+      ]
+    : userQuizzes.map((q) => ({
+        quiz: q.topicName.length > 14 ? q.topicName.substring(0, 12) + ".." : q.topicName,
+        confidence: q.confidence,
+        accuracy: q.accuracy,
+        gap: q.confidenceGap,
+      }));
 
-  const totalQuizzesCount = 28 + userQuizzes.length;
-  const highRiskCount = 3 + userQuizzes.filter((q) => q.forgettingRisk === "HIGH").length;
-  const avgGap =
-    userQuizzes.length > 0
+  const totalQuizzesCount = isArjun ? 28 + userQuizzes.length : userQuizzes.length;
+  const highRiskCount = isArjun
+    ? 3 + userQuizzes.filter((q) => q.forgettingRisk === "HIGH").length
+    : userQuizzes.filter((q) => q.forgettingRisk === "HIGH").length;
+
+  const avgGap = isArjun
+    ? userQuizzes.length > 0
       ? (
           (6.2 * 28 + userQuizzes.reduce((acc, q) => acc + q.confidenceGap, 0)) /
           (28 + userQuizzes.length)
         ).toFixed(1)
-      : "6.2";
+      : "6.2"
+    : userQuizzes.length > 0
+    ? (userQuizzes.reduce((acc, q) => acc + q.confidenceGap, 0) / userQuizzes.length).toFixed(1)
+    : "0.0";
+
+  const overallMasteryDisplay = isArjun
+    ? "78%"
+    : userQuizzes.length > 0
+    ? `${Math.round(userQuizzes.reduce((a, b) => a + (b.accuracy || 0), 0) / userQuizzes.length)}%`
+    : "0%";
+
+  const revisionsDoneDisplay = isArjun
+    ? "14"
+    : `${Math.floor(userQuizzes.length / 2)}`;
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex font-sans antialiased text-slate-900">
@@ -169,7 +199,7 @@ export default function AnalyticsPage() {
           {/* 5 Core Metrics Tiles */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
             {[
-              { label: "Overall Mastery", val: "78%", sub: "+12% this term", icon: Award, color: "text-indigo-600 bg-indigo-50" },
+              { label: "Overall Mastery", val: overallMasteryDisplay, sub: isArjun ? "+12% this term" : (userQuizzes.length === 0 ? "First quiz awaits" : "Evaluated mastery"), icon: Award, color: "text-indigo-600 bg-indigo-50" },
               {
                 label: "Quizzes Completed",
                 val: `${totalQuizzesCount}`,
@@ -184,7 +214,7 @@ export default function AnalyticsPage() {
                 icon: Target,
                 color: "text-emerald-600 bg-emerald-50",
               },
-              { label: "Revisions Done", val: "14", sub: "+38% retention lift", icon: RefreshCw, color: "text-purple-600 bg-purple-50" },
+              { label: "Revisions Done", val: revisionsDoneDisplay, sub: isArjun ? "+38% retention lift" : (userQuizzes.length === 0 ? "Spaced queue" : "Active sessions"), icon: RefreshCw, color: "text-purple-600 bg-purple-50" },
               {
                 label: "At-Risk Topics",
                 val: `${highRiskCount}`,

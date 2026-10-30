@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
@@ -18,6 +18,19 @@ import AIStudyInput from "@/components/dashboard/AIStudyInput";
 export default function DashboardPage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [userName, setUserName] = useState("Arjun");
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("recallq_user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        if (u.name) {
+          setUserName(u.name.trim().split(" ")[0]);
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex font-sans antialiased text-slate-900">
@@ -66,7 +79,7 @@ export default function DashboardPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-950 tracking-tight flex items-center gap-2">
-                <span>Good morning, Arjun</span>
+                <span>Good morning, {userName}</span>
                 <span className="text-xl sm:text-2xl">👏</span>
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">

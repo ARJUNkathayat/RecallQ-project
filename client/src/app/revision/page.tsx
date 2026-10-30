@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -21,8 +21,10 @@ import Sidebar from "@/components/dashboard/Sidebar";
 import Header from "@/components/dashboard/Header";
 import SearchModal from "@/components/dashboard/SearchModal";
 import DashboardFooter from "@/components/dashboard/DashboardFooter";
+import { isArjunUser, getCurrentUser } from "@/lib/authHelper";
+import { getQuizHistory } from "@/lib/geminiQuizService";
 
-const revisionQueue = [
+const defaultRevisionQueue = [
   {
     id: "dbms-norm",
     topic: "DBMS Normalization (1NF to BCNF)",
@@ -82,11 +84,50 @@ const revisionQueue = [
 ];
 
 export default function RevisionPage() {
-  const [activeTopic, setActiveTopic] = useState(revisionQueue[0]);
+  const [queue, setQueue] = useState(defaultRevisionQueue);
+  const [activeTopic, setActiveTopic] = useState(defaultRevisionQueue[0]);
+  const [isNewUserEmpty, setIsNewUserEmpty] = useState(false);
   const [confidencePost, setConfidencePost] = useState(90);
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const u = getCurrentUser();
+      const isArjun = isArjunUser(u);
+      if (!isArjun) {
+        const history = getQuizHistory();
+        if (history.length === 0) {
+          setIsNewUserEmpty(true);
+        } else {
+          setIsNewUserEmpty(false);
+          const mapped = history.map((h) => ({
+            id: h.id,
+            topic: h.topicName,
+            subject: "Universal Diagnostic Quiz",
+            priority: h.accuracy < 60 ? "HIGH" : h.accuracy < 80 ? "MEDIUM" : "LOW",
+            priorityColor: h.accuracy < 60
+              ? "bg-red-50 text-red-700 border-red-200"
+              : h.accuracy < 80
+              ? "bg-amber-50 text-amber-700 border-amber-200"
+              : "bg-emerald-50 text-emerald-700 border-emerald-200",
+            due: h.accuracy < 60 ? "Due Today" : "Due in 2 Days",
+            mastery: h.accuracy,
+            retentionBefore: Math.max(25, h.accuracy - 20),
+            retentionAfter: 90,
+            summary: `Spaced revision for ${h.topicName}. Targeted reinforcement of knowledge gaps identified during testing.`,
+            keyPoints: h.weakSubtopics && h.weakSubtopics.length > 0
+              ? h.weakSubtopics.map((s) => `Weak subtopic focus: ${s}`)
+              : [`General review of core principles in ${h.topicName}`, "Active recall practice recommended"],
+            pitfalls: "Assuming passive re-reading creates permanent retention. Test active recall.",
+          }));
+          setQueue(mapped);
+          setActiveTopic(mapped[0]);
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   const handleCompleteRevision = () => {
     setSessionCompleted(true);
@@ -139,22 +180,42 @@ export default function RevisionPage() {
 
             <div className="flex items-center gap-3">
               <span className="px-3.5 py-1.5 rounded-2xl bg-white border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs">
-                3 Topics in Queue
+                {isNewUserEmpty ? "0 Topics" : `${queue.length} Topics in Queue`}
               </span>
             </div>
           </div>
 
           {/* Main 2-Column Split: Topic List Left, Interactive Session Right */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            
-            {/* LEFT 5 COLS: Revision Cards List */}
-            <div className="lg:col-span-5 space-y-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
-                Priority Revision Queue
-              </h3>
+          {isNewUserEmpty ? (
+            <div className="p-12 rounded-3xl bg-white border border-slate-200/80 shadow-2xs text-center max-w-xl mx-auto space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto">
+                <Sparkles className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900">Your Revision Queue is Clear!</h2>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                You don&apos;t have any scheduled spaced revisions yet. Once you complete diagnostic assessments on any topic, weak areas will automatically appear here with calculated decay curves.
+              </p>
+              <div className="pt-2">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all"
+                >
+                  <span>Go to Study Input</span>
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* LEFT 5 COLS: Revision Cards List */}
+              <div className="lg:col-span-5 space-y-4">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                  Priority Revision Queue
+                </h3>
 
-              {revisionQueue.map((item) => {
-                const isSelected = activeTopic.id === item.id;
+                {queue.map((item) => {
+                  const isSelected = activeTopic?.id === item.id;
                 return (
                   <motion.div
                     key={item.id}
@@ -349,6 +410,7 @@ export default function RevisionPage() {
             </div>
 
           </div>
+          )}
 
           {/* Footer */}
           <DashboardFooter />
