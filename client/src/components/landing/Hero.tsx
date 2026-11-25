@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -40,7 +41,15 @@ const retentionChartData = [
 ];
 
 export default function Hero() {
+  const router = useRouter();
   const [activeNav, setActiveNav] = useState("Dashboard");
+  const [quickTopic, setQuickTopic] = useState("");
+
+  const handleQuickLaunch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const target = quickTopic.trim() || "Binary Trees";
+    router.push(`/quiz/dynamic?topic=${encodeURIComponent(target)}&confidence=75&count=10`);
+  };
 
   return (
     <section className="relative pt-28 pb-20 md:pt-36 md:pb-28 overflow-hidden bg-white bg-grid-slate">
@@ -108,16 +117,57 @@ export default function Hero() {
                 <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
               </Link>
 
-              <a
-                href="#how-it-works"
+              <Link
+                href="/dashboard"
                 className="inline-flex items-center justify-center gap-2.5 px-6 py-3.5 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-full shadow-2xs transition-all"
               >
                 <div className="w-5 h-5 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
                   <Play className="w-2.5 h-2.5 fill-current ml-0.5" />
                 </div>
-                <span>See how it works</span>
-              </a>
+                <span>Open Live Demo</span>
+              </Link>
             </motion.div>
+
+            {/* Instant AI Diagnostic Quick-Launcher */}
+            <motion.form
+              onSubmit={handleQuickLaunch}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.35 }}
+              className="mt-6 w-full max-w-md"
+            >
+              <div className="flex items-center p-1.5 rounded-2xl bg-white border border-slate-200 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 transition-all">
+                <Sparkles className="w-4 h-4 text-indigo-500 ml-2.5 shrink-0" />
+                <input
+                  type="text"
+                  value={quickTopic}
+                  onChange={(e) => setQuickTopic(e.target.value)}
+                  placeholder="Try any topic (e.g. Dynamic Programming)..."
+                  className="flex-1 bg-transparent px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shrink-0 transition-colors cursor-pointer"
+                >
+                  Test AI Quiz
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                <span>Try:</span>
+                {["Binary Trees", "DBMS Normalization", "TCP/IP"].map((sample) => (
+                  <button
+                    key={sample}
+                    type="button"
+                    onClick={() =>
+                      router.push(`/quiz/dynamic?topic=${encodeURIComponent(sample)}&confidence=75&count=10`)
+                    }
+                    className="px-2 py-0.5 rounded-full bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 font-medium transition-colors cursor-pointer"
+                  >
+                    {sample}
+                  </button>
+                ))}
+              </div>
+            </motion.form>
 
             {/* 3 Value Pillars */}
             <motion.div

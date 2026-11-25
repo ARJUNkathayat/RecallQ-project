@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -12,6 +12,8 @@ import {
   ReferenceDot
 } from "recharts";
 import { Info } from "lucide-react";
+import { isArjunUser, getCurrentUser } from "@/lib/authHelper";
+import { getQuizHistory } from "@/lib/geminiQuizService";
 
 const chartDatasets: Record<string, Array<{ day: string; retention: number }>> = {
   "All Subjects": [
@@ -50,7 +52,46 @@ const chartDatasets: Record<string, Array<{ day: string; retention: number }>> =
 
 export default function RetentionChart() {
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
-  const data = chartDatasets[selectedSubject] || chartDatasets["All Subjects"];
+  const [isArjun, setIsArjun] = useState(true);
+  const [userCurve, setUserCurve] = useState<Array<{ day: string; retention: number }>>([]);
+
+  useEffect(() => {
+    try {
+      const u = getCurrentUser();
+      const checkArjun = isArjunUser(u);
+      setIsArjun(checkArjun);
+      if (!checkArjun) {
+        const history = getQuizHistory();
+        if (history.length > 0) {
+          const avgAcc = history.reduce((a, b) => a + (b.accuracy || 0), 0) / history.length;
+          const strength = Math.max(3, (avgAcc / 100) * 14);
+          setUserCurve([
+            { day: "Today", retention: 100 },
+            { day: "1 day", retention: Math.round(100 * Math.exp(-1 / strength)) },
+            { day: "3 days", retention: Math.round(100 * Math.exp(-3 / strength)) },
+            { day: "7 days", retention: Math.round(100 * Math.exp(-7 / strength)) },
+            { day: "14 days", retention: Math.round(100 * Math.exp(-14 / strength)) },
+            { day: "30 days", retention: Math.round(100 * Math.exp(-30 / strength)) },
+          ]);
+        } else {
+          setUserCurve([
+            { day: "Today", retention: 0 },
+            { day: "1 day", retention: 0 },
+            { day: "3 days", retention: 0 },
+            { day: "7 days", retention: 0 },
+            { day: "14 days", retention: 0 },
+            { day: "30 days", retention: 0 },
+          ]);
+        }
+      }
+    } catch (e) {}
+  }, []);
+
+  const data = isArjun
+    ? chartDatasets[selectedSubject] || chartDatasets["All Subjects"]
+    : userCurve.length > 0
+    ? userCurve
+    : chartDatasets["All Subjects"];
 
   return (
     <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex flex-col justify-between h-full">

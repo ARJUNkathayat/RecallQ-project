@@ -3,6 +3,7 @@ import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
 import TrustLogos from "@/components/landing/TrustLogos";
 import Features from "@/components/landing/Features";
+import LiveShowcase from "@/components/landing/LiveShowcase";
 import HowItWorks from "@/components/landing/HowItWorks";
 import ImpactSection from "@/components/landing/ImpactSection";
 import MetricsBanner from "@/components/landing/MetricsBanner";
@@ -25,6 +26,9 @@ export default function LandingPage() {
 
       {/* 4 Core Features (Double-Bezel) */}
       <Features />
+
+      {/* Live AI Modules Bento Showcase */}
+      <LiveShowcase />
 
       {/* 5-Step Visual Loop */}
       <HowItWorks />
