@@ -146,6 +146,55 @@ export default function AnalyticsPage() {
     ? "14"
     : `${Math.floor(userQuizzes.length / 2)}`;
 
+  const activeMonthlyTrend = isArjun
+    ? monthlyMasteryTrend
+    : userQuizzes.length > 0
+    ? [...userQuizzes]
+        .reverse()
+        .map((q, idx) => ({
+          month: `Quiz ${idx + 1}`,
+          mastery: q.accuracy,
+          retention: Math.max(20, Math.round(q.accuracy * 0.9)),
+        }))
+    : [{ month: "Today", mastery: 0, retention: 0 }];
+
+  const chartPalette = ["#4F46E5", "#3B82F6", "#06B6D4", "#8B5CF6"];
+  const activeSubjectData = isArjun
+    ? subjectMasteryData
+    : userQuizzes.length > 0
+    ? userQuizzes.slice(0, 4).map((q, idx) => ({
+        subject: q.topicName.length > 16 ? q.topicName.slice(0, 14) + ".." : q.topicName,
+        mastery: q.accuracy,
+        benchmark: 70,
+        fill: chartPalette[idx % chartPalette.length],
+      }))
+    : [{ subject: "No Quizzes Yet", mastery: 0, benchmark: 70, fill: "#CBD5E1" }];
+
+  const lowRiskCount = isArjun ? 18 : userQuizzes.filter((q) => q.forgettingRisk === "LOW").length;
+  const medRiskCount = isArjun ? 7 : userQuizzes.filter((q) => q.forgettingRisk === "MEDIUM").length;
+  const activeRiskData = isArjun
+    ? riskDistributionData
+    : totalQuizzesCount > 0
+    ? [
+        { name: "Low Risk", value: lowRiskCount, color: "#10B981" },
+        { name: "Medium Risk", value: medRiskCount, color: "#F59E0B" },
+        { name: "High Risk", value: highRiskCount, color: "#EF4444" },
+      ]
+    : [{ name: "No Data", value: 1, color: "#E2E8F0" }];
+
+  const activeRevisionImpact = isArjun
+    ? revisionImpactTopics
+    : userQuizzes.slice(0, 4).map((q) => {
+        const after = Math.min(96, Math.max(q.accuracy + 22, 78));
+        const lift = Math.max(0, after - q.accuracy);
+        return {
+          topic: q.topicName,
+          before: q.accuracy,
+          after,
+          gain: `+${lift}%`,
+        };
+      });
+
   return (
     <div className="min-h-screen bg-slate-50/70 flex font-sans antialiased text-slate-900">
       {/* Desktop Fixed Sidebar */}
@@ -258,7 +307,7 @@ export default function AnalyticsPage() {
 
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={monthlyMasteryTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={activeMonthlyTrend} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
                       <linearGradient id="anMasteryGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.25} />
@@ -291,12 +340,12 @@ export default function AnalyticsPage() {
                   <h3 className="text-sm font-bold text-slate-950">Mastery by Subject</h3>
                   <p className="text-xs text-slate-500">Performance vs academic benchmark.</p>
                 </div>
-                <span className="text-[11px] font-bold text-indigo-600">Avg 73.7%</span>
+                <span className="text-[11px] font-bold text-indigo-600">{isArjun ? "Avg 73.7%" : overallMasteryDisplay}</span>
               </div>
 
               <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={subjectMasteryData} layout="vertical" margin={{ top: 10, right: 20, left: 20, bottom: 0 }}>
+                  <BarChart data={activeSubjectData} layout="vertical" margin={{ top: 10, right: 20, left: 20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                     <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => `${v}%`} />
                     <YAxis dataKey="subject" type="category" tick={{ fontSize: 11, fill: "#334155" }} axisLine={false} tickLine={false} />
@@ -305,7 +354,7 @@ export default function AnalyticsPage() {
                       formatter={(val: any) => [`${val}% Mastery`, ""]}
                     />
                     <Bar dataKey="mastery" radius={[0, 8, 8, 0]}>
-                      {subjectMasteryData.map((entry, index) => (
+                      {activeSubjectData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.fill} />
                       ))}
                     </Bar>
@@ -503,13 +552,13 @@ export default function AnalyticsPage() {
             <div className="lg:col-span-4 p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs flex flex-col justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-950">Forgetting Risk Distribution</h3>
-                <p className="text-xs text-slate-500">28 total active topics tracked.</p>
+                <p className="text-xs text-slate-500">{totalQuizzesCount} total active topics tracked.</p>
 
                 <div className="h-48 w-full relative flex items-center justify-center my-3">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={riskDistributionData}
+                        data={activeRiskData}
                         cx="50%"
                         cy="50%"
                         innerRadius={50}
@@ -517,7 +566,7 @@ export default function AnalyticsPage() {
                         paddingAngle={5}
                         dataKey="value"
                       >
-                        {riskDistributionData.map((entry, index) => (
+                        {activeRiskData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
@@ -526,7 +575,7 @@ export default function AnalyticsPage() {
                   </ResponsiveContainer>
                   
                   <div className="absolute text-center">
-                    <span className="text-2xl font-black text-slate-900">28</span>
+                    <span className="text-2xl font-black text-slate-900">{totalQuizzesCount}</span>
                     <p className="text-[10px] text-slate-400 font-semibold">Topics</p>
                   </div>
                 </div>
@@ -535,15 +584,15 @@ export default function AnalyticsPage() {
               <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Low Risk</span>
-                  <span className="font-bold text-slate-800">18 Topics (64%)</span>
+                  <span className="font-bold text-slate-800">{lowRiskCount} Topics</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Medium Risk</span>
-                  <span className="font-bold text-slate-800">7 Topics (25%)</span>
+                  <span className="font-bold text-slate-800">{medRiskCount} Topics</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> High Risk</span>
-                  <span className="font-bold text-red-600">3 Topics (11%)</span>
+                  <span className="font-bold text-red-600">{highRiskCount} Topics</span>
                 </div>
               </div>
             </div>
@@ -556,30 +605,36 @@ export default function AnalyticsPage() {
                   <p className="text-xs text-slate-500">Measurable retention jump before vs after personalized revision.</p>
                 </div>
                 <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
-                  Avg Lift: +42.8%
+                  {isArjun ? "Avg Lift: +42.8%" : "Ebbinghaus Projected"}
                 </span>
               </div>
 
               <div className="space-y-3 pt-2">
-                {revisionImpactTopics.map((item) => (
-                  <div key={item.topic} className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">{item.topic}</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        Before: <span className="font-semibold text-red-600">{item.before}%</span> &rarr; After Revision: <span className="font-semibold text-emerald-600">{item.after}%</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="w-32 h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${item.after}%` }} />
-                      </div>
-                      <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        {item.gain}
-                      </span>
-                    </div>
+                {activeRevisionImpact.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-100 text-center text-xs text-slate-500">
+                    Complete your first diagnostic quiz to see projected Ebbinghaus spaced-revision retention lift.
                   </div>
-                ))}
+                ) : (
+                  activeRevisionImpact.map((item) => (
+                    <div key={item.topic} className="p-3.5 rounded-2xl bg-slate-50/70 border border-slate-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-bold text-slate-900">{item.topic}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Before: <span className="font-semibold text-red-600">{item.before}%</span> &rarr; After Revision: <span className="font-semibold text-emerald-600">{item.after}%</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <div className="w-32 h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${item.after}%` }} />
+                        </div>
+                        <span className="text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                          {item.gain}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 

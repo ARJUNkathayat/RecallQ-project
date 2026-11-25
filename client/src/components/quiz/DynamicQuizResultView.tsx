@@ -32,12 +32,20 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { QuizDiagnosticResult } from "@/lib/geminiQuizService";
+import {
+  QuizDiagnosticResult,
+  QuestionItem,
+  explainMissedQuestion,
+  DoubtExplanation,
+} from "@/lib/geminiQuizService";
+import { getCurrentUser } from "@/lib/authHelper";
 import TargetedReQuizModal from "./TargetedReQuizModal";
 
 interface DynamicQuizResultViewProps {
   diagnostic: QuizDiagnosticResult;
   timeSpentSec: number;
+  questions?: QuestionItem[];
+  selectedAnswers?: Record<number, number>;
   onRetake: () => void;
   onNewTopic: () => void;
 }
@@ -45,12 +53,43 @@ interface DynamicQuizResultViewProps {
 export default function DynamicQuizResultView({
   diagnostic,
   timeSpentSec,
+  questions = [],
+  selectedAnswers = {},
   onRetake,
   onNewTopic,
 }: DynamicQuizResultViewProps) {
   const [showRequizModal, setShowRequizModal] = useState(false);
   const [simulatedReminderFired, setSimulatedReminderFired] = useState(false);
   const [expandedSubtopic, setExpandedSubtopic] = useState<string | null>(null);
+  const [doubtLoadingIdx, setDoubtLoadingIdx] = useState<number | null>(null);
+  const [doubtAnswers, setDoubtAnswers] = useState<Record<number, DoubtExplanation>>({});
+
+  const currentUser = getCurrentUser();
+  const firstName = currentUser?.name?.trim().split(" ")[0] || "Learner";
+
+  const missedQuestions = questions
+    .map((q, idx) => ({ q, idx, chosen: selectedAnswers[idx] }))
+    .filter((item) => item.chosen !== item.q.correctAnswer);
+
+  const handleAskAIDoubt = async (q: QuestionItem, idx: number, chosenIdx?: number) => {
+    setDoubtLoadingIdx(idx);
+    try {
+      const correctOption = q.options[q.correctAnswer] || "Correct Option";
+      const chosenOption =
+        typeof chosenIdx === "number" && q.options[chosenIdx]
+          ? q.options[chosenIdx]
+          : "No option selected";
+      const res = await explainMissedQuestion(
+        diagnostic.topicName,
+        q.question,
+        correctOption,
+        chosenOption
+      );
+      setDoubtAnswers((prev) => ({ ...prev, [idx]: res }));
+    } finally {
+      setDoubtLoadingIdx(null);
+    }
+  };
 
   const {
     topicName,
@@ -455,7 +494,89 @@ export default function DynamicQuizResultView({
         </div>
       </div>
 
-      {/* SPACED REVISION REMINDER & TARGETED RE-TEST SIMULATION (The exact workflow the user requested!) */}
+      {/* MISSED QUESTIONS & ASK AI DOUBT */}
+      {missedQuestions.length > 0 && (
+        <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-2xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-bold text-slate-950 flex items-center gap-2">
+                <HelpCircle className="w-4 h-4 text-rose-500" />
+                <span>Missed Questions &amp; AI Doubt Solver ({missedQuestions.length})</span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                Tap &ldquo;Ask AI Why&rdquo; on any missed question for an instant conceptual breakdown + real-world analogy.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {missedQuestions.map(({ q, idx, chosen }) => {
+              const doubt = doubtAnswers[idx];
+              const isLoadingDoubt = doubtLoadingIdx === idx;
+              return (
+                <div
+                  key={idx}
+                  className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="space-y-1.5">
+                      <span className="inline-block px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold">
+                        Q{idx + 1} &middot; {q.subtopic}
+                      </span>
+                      <p className="text-xs sm:text-sm font-bold text-slate-900">
+                        {q.question}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] pt-1">
+                        <span className="text-rose-600 font-semibold flex items-center gap-1">
+                          <XCircle className="w-3.5 h-3.5 shrink-0" />
+                          Your answer: {typeof chosen === "number" && q.options[chosen] ? q.options[chosen] : "Skipped"}
+                        </span>
+                        <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          Correct: {q.options[q.correctAnswer]}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAskAIDoubt(q, idx, chosen)}
+                      disabled={isLoadingDoubt}
+                      className="shrink-0 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{isLoadingDoubt ? "Thinking..." : doubt ? "Refresh AI Tutor" : "Ask AI Why"}</span>
+                    </button>
+                  </div>
+
+                  {doubt && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3.5 rounded-xl bg-indigo-50/80 border border-indigo-200/70 space-y-2 text-xs"
+                    >
+                      <p className="text-slate-800 leading-relaxed">
+                        <span className="font-bold text-indigo-700">AI Tutor: </span>
+                        {doubt.explanation}
+                      </p>
+                      <p className="text-slate-700">
+                        <span className="font-bold text-amber-700">Analogy: </span>
+                        {doubt.analogy}
+                      </p>
+                      <p className="text-emerald-800 font-semibold">
+                        <span>Rule of Thumb: </span>
+                        {doubt.keyTakeaway}
+                      </p>
+                    </motion.div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* SPACED REVISION REMINDER & TARGETED RE-TEST SIMULATION */}
       <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-slate-800 text-white shadow-xl space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1">
@@ -510,7 +631,7 @@ export default function DynamicQuizResultView({
                     Simulated Notification &middot; Day {recommendedDays} Trigger
                   </div>
                   <div className="text-xs font-bold text-white mt-0.5">
-                    &ldquo;Hey Arjun! {recommendedDays} days ago you studied {topicName} and had weak spots in {weakSubtopics[0] || "core concepts"}. Your retention has decayed to ~45%. Take a 2-minute targeted re-quiz to reinforce it!&rdquo;
+                    &ldquo;Hey {firstName}! {recommendedDays} days ago you studied {topicName} and had weak spots in {weakSubtopics[0] || "core concepts"}. Your retention has decayed to ~45%. Take a 2-minute targeted re-quiz to reinforce it!&rdquo;
                   </div>
                 </div>
               </div>

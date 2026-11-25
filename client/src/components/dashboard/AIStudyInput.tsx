@@ -14,6 +14,8 @@ import {
   Lightbulb,
   Zap,
   BookOpen,
+  FileText,
+  Upload,
 } from "lucide-react";
 
 interface AIStudyInputProps {
@@ -22,7 +24,9 @@ interface AIStudyInputProps {
 
 export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
   const router = useRouter();
+  const [inputMode, setInputMode] = useState<"topic" | "notes">("topic");
   const [topic, setTopic] = useState("");
+  const [sourceNotes, setSourceNotes] = useState("");
   const [confidence, setConfidence] = useState(75);
   const [questionCount, setQuestionCount] = useState(20);
   const [isListening, setIsListening] = useState(false);
@@ -129,18 +133,44 @@ export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
     }
   };
 
+  const handleNotesFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setSourceNotes(reader.result.slice(0, 8000));
+        if (!topic.trim()) {
+          setTopic(file.name.replace(/\.[^/.]+$/, ""));
+        }
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleLaunchQuiz = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!topic.trim()) return;
+    const resolvedTopic = topic.trim() || (inputMode === "notes" && sourceNotes.trim() ? "Custom Study Notes" : "");
+    if (!resolvedTopic) return;
+    if (inputMode === "notes" && !sourceNotes.trim()) return;
+
+    try {
+      if (inputMode === "notes" && sourceNotes.trim()) {
+        sessionStorage.setItem("recallq_source_notes", sourceNotes.trim());
+      } else {
+        sessionStorage.removeItem("recallq_source_notes");
+      }
+    } catch (err) {}
 
     setIsSubmitting(true);
     if (onStartQuiz) {
-      onStartQuiz(topic.trim(), confidence, questionCount);
+      onStartQuiz(resolvedTopic, confidence, questionCount);
     } else {
       const query = new URLSearchParams({
-        topic: topic.trim(),
+        topic: resolvedTopic,
         confidence: confidence.toString(),
         count: questionCount.toString(),
+        ...(inputMode === "notes" ? { mode: "notes" } : {}),
       });
       router.push(`/quiz/dynamic?${query.toString()}`);
     }
@@ -203,8 +233,36 @@ export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
           </p>
         </div>
 
-        {/* Input Form with Voice Button */}
+        {/* Input Form with Voice & Notes Mode */}
         <form onSubmit={handleLaunchQuiz} className="space-y-5">
+
+          {/* Mode Tabs */}
+          <div className="inline-flex rounded-2xl bg-white/10 p-1 border border-white/15">
+            <button
+              type="button"
+              onClick={() => setInputMode("topic")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                inputMode === "topic"
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Topic / Voice</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode("notes")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                inputMode === "notes"
+                  ? "bg-white text-slate-950 shadow-sm"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Paste Notes / Syllabus</span>
+            </button>
+          </div>
           
           {/* Main Topic Input Field */}
           <div className="relative flex items-center">
@@ -212,13 +270,17 @@ export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
               type="text"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Linked List, French Revolution, Three-Phase Induction Motors..."
+              placeholder={
+                inputMode === "notes"
+                  ? "Title for your notes (e.g. OS Deadlocks Lecture 4)..."
+                  : "e.g. Linked List, French Revolution, Three-Phase Induction Motors..."
+              }
               className="w-full px-5 py-4 pr-24 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-slate-400 text-sm sm:text-base font-medium focus:outline-hidden focus:ring-2 focus:ring-indigo-400 focus:bg-white/15 transition-all shadow-inner"
             />
 
             {/* Voice Mic Button */}
             <div className="absolute right-3 flex items-center gap-2">
-              {voiceSupported && (
+              {voiceSupported && inputMode === "topic" && (
                 <button
                   type="button"
                   onClick={toggleVoiceListening}
@@ -234,6 +296,32 @@ export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
               )}
             </div>
           </div>
+
+          {/* Notes Paste / File Upload Box */}
+          {inputMode === "notes" && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-slate-300">
+                <span>Paste your lecture notes, textbook excerpt, or syllabus below:</span>
+                <label className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 cursor-pointer text-white font-semibold transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload .txt / .md</span>
+                  <input
+                    type="file"
+                    accept=".txt,.md,.csv"
+                    onChange={handleNotesFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+              <textarea
+                rows={4}
+                value={sourceNotes}
+                onChange={(e) => setSourceNotes(e.target.value)}
+                placeholder="Paste your notes here (up to 8,000 characters). Gemini will extract subtopics and build MCQs directly from your study material..."
+                className="w-full px-4 py-3 rounded-2xl bg-white/10 border border-white/20 text-white placeholder-slate-400 text-xs sm:text-sm focus:outline-hidden focus:ring-2 focus:ring-indigo-400 transition-all"
+              />
+            </div>
+          )}
 
           {/* Voice feedback line */}
           <AnimatePresence>
@@ -344,9 +432,9 @@ export default function AIStudyInput({ onStartQuiz }: AIStudyInputProps) {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={!topic.trim() || isSubmitting}
+              disabled={(inputMode === "topic" ? !topic.trim() : !sourceNotes.trim()) || isSubmitting}
               className={`group w-full sm:w-auto px-7 py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2.5 shadow-xl transition-all active:scale-98 ${
-                topic.trim() && !isSubmitting
+                (inputMode === "topic" ? topic.trim() : sourceNotes.trim()) && !isSubmitting
                   ? "bg-white hover:bg-slate-100 text-slate-950 cursor-pointer shadow-indigo-500/20"
                   : "bg-white/20 text-slate-400 cursor-not-allowed"
               }`}

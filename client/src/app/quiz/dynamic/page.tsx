@@ -74,7 +74,11 @@ function DynamicQuizContent() {
       }, 900);
 
       try {
-        const qList = await generateQuizQuestions(topicParam, countParam, "MEDIUM");
+        let notesArg: string | undefined = undefined;
+        if (searchParams.get("mode") === "notes" && typeof window !== "undefined") {
+          notesArg = sessionStorage.getItem("recallq_source_notes") || undefined;
+        }
+        const qList = await generateQuizQuestions(topicParam, countParam, "MEDIUM", notesArg);
         if (isMounted) {
           setQuestions(qList);
           setTimeRemaining(qList.length * 60);
@@ -281,6 +285,8 @@ function DynamicQuizContent() {
             <DynamicQuizResultView
               diagnostic={diagnosticResult}
               timeSpentSec={questions.length * 60 - timeRemaining}
+              questions={questions}
+              selectedAnswers={selectedAnswers}
               onRetake={handleRetake}
               onNewTopic={handleNewTopic}
             />

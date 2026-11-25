@@ -7,6 +7,7 @@ import {
   generateDynamicQuiz,
   submitDynamicQuizAttempt,
   generateReQuiz,
+  explainDoubt,
 } from "../controllers/quizController.js";
 import { getDashboardOverview } from "../controllers/dashboardController.js";
 import { getRevisionQueue, completeRevision } from "../controllers/revisionController.js";
@@ -43,6 +44,7 @@ apiRouter.post("/quizzes/:id/attempt", requireAuth, submitQuizAttempt);
 apiRouter.post("/quizzes/generate-dynamic", generateDynamicQuiz);
 apiRouter.post("/quizzes/submit-dynamic", submitDynamicQuizAttempt);
 apiRouter.post("/quizzes/requiz", generateReQuiz);
+apiRouter.post("/quizzes/explain-doubt", explainDoubt);
 
 // Student Dashboard Routes
 apiRouter.get("/dashboard", getDashboardOverview);

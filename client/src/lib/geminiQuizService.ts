@@ -155,7 +155,8 @@ async function callDirectGemini(prompt: string): Promise<string> {
 export async function generateQuizQuestions(
   topic: string,
   questionCount: number = 20,
-  difficulty: "EASY" | "MEDIUM" | "HARD" = "MEDIUM"
+  difficulty: "EASY" | "MEDIUM" | "HARD" = "MEDIUM",
+  sourceNotes?: string
 ): Promise<QuestionItem[]> {
   // 1. Try backend API first
   try {
@@ -166,6 +167,7 @@ export async function generateQuizQuestions(
         topicName: topic,
         questionCount,
         difficulty,
+        ...(sourceNotes ? { sourceNotes } : {}),
       }),
     });
 
@@ -420,4 +422,50 @@ function createFallbackQuestions(topic: string, count: number, customSubtopics?:
     });
   }
   return questions;
+}
+
+export interface DoubtExplanation {
+  explanation: string;
+  analogy: string;
+  keyTakeaway: string;
+}
+
+/**
+ * Ask AI Doubt for a missed question via backend endpoint (with graceful fallback)
+ */
+export async function explainMissedQuestion(
+  topic: string,
+  question: string,
+  correctOption: string,
+  chosenOption: string,
+  userQuestion?: string
+): Promise<DoubtExplanation> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/quizzes/explain-doubt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        topic,
+        question,
+        correctOption,
+        chosenOption,
+        userQuestion,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.explanation) {
+        return data;
+      }
+    }
+  } catch (err) {
+    // Fallback below
+  }
+
+  return {
+    explanation: `"${correctOption}" holds under all boundary cases in ${topic}, whereas "${chosenOption}" fails when constraints scale or invariants shift.`,
+    analogy: "Think of it like double-checking load limits on a bridge before opening all lanes.",
+    keyTakeaway: `Always verify the core invariant behind "${correctOption}".`,
+  };
 }

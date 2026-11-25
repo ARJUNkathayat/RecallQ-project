@@ -12,6 +12,7 @@ import {
 import {
   generateAIQuestions,
   generateWeakSubtopicReQuiz,
+  explainQuestionDoubt,
   AIQuestion,
 } from "../services/aiGenerator.js";
 
@@ -235,18 +236,19 @@ const generateDynamicSchema = z.object({
   questionCount: z.number().int().min(3).max(30).optional().default(20),
   difficulty: z.enum(["EASY", "MEDIUM", "HARD"]).optional().default("MEDIUM"),
   confidence: z.number().min(0).max(100).optional().default(75),
+  sourceNotes: z.string().optional(),
 });
 
 /**
  * Dynamic Universal AI Quiz Generation endpoint
- * Generates custom 20 diagnostic questions with subtopic tags on ANY subject/topic
+ * Generates custom 20 diagnostic questions with subtopic tags on ANY subject/topic or pasted notes
  */
 export async function generateDynamicQuiz(req: AuthRequest, res: Response) {
   try {
     const validated = generateDynamicSchema.parse(req.body);
-    const { topicName, subjectName, questionCount, difficulty, confidence } = validated;
+    const { topicName, subjectName, questionCount, difficulty, confidence, sourceNotes } = validated;
 
-    const questions = await generateAIQuestions(topicName, questionCount, difficulty);
+    const questions = await generateAIQuestions(topicName, questionCount, difficulty, sourceNotes);
 
     return res.status(200).json({
       quiz: {
@@ -447,5 +449,35 @@ export async function generateReQuiz(req: AuthRequest, res: Response) {
     }
     console.error("Re-quiz generation error:", error);
     return res.status(500).json({ error: "Failed to generate targeted re-quiz." });
+  }
+}
+
+const explainDoubtSchema = z.object({
+  topic: z.string().min(1),
+  question: z.string().min(1),
+  correctOption: z.string().min(1),
+  chosenOption: z.string().min(1),
+  userQuestion: z.string().optional(),
+});
+
+/**
+ * Ask AI Doubt endpoint for missed quiz questions
+ */
+export async function explainDoubt(req: AuthRequest, res: Response) {
+  try {
+    const validated = explainDoubtSchema.parse(req.body);
+    const result = await explainQuestionDoubt(
+      validated.topic,
+      validated.question,
+      validated.correctOption,
+      validated.chosenOption,
+      validated.userQuestion
+    );
+    return res.status(200).json(result);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: "Invalid doubt request", details: error.errors });
+    }
+    return res.status(500).json({ error: "Failed to generate doubt explanation." });
   }
 }

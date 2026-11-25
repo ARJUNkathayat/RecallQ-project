@@ -207,7 +207,7 @@ export default function ProfilePage() {
                     {branch} &middot; {year} &middot; {college}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Member since September 2026 &middot; Learning ID: #RCQ-9482
+                    {isArjun ? "Member since September 2026" : "Member since November 2026"} &middot; Learning ID: #{isArjun ? "RCQ-9482" : `RCQ-${Math.abs(email.split("").reduce((a, c) => a + c.charCodeAt(0), 1000))}`}
                   </p>
                 </div>
               </div>
@@ -219,8 +219,20 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-600">Calibration Status</div>
-                  <div className="text-sm font-black text-slate-900">Highly Calibrated (4% Gap)</div>
-                  <div className="text-[10px] text-slate-500">Confidence aligns with accuracy</div>
+                  <div className="text-sm font-black text-slate-900">
+                    {isArjun
+                      ? "Highly Calibrated (4% Gap)"
+                      : userStats.quizzesCompleted === 0
+                      ? "Not Yet Calibrated"
+                      : Math.abs(userStats.avgConfidence - userStats.avgAccuracy) <= 10
+                      ? `Well Calibrated (${Math.abs(userStats.avgConfidence - userStats.avgAccuracy)}% Gap)`
+                      : `Gap Detected (${Math.abs(userStats.avgConfidence - userStats.avgAccuracy)}% Gap)`}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    {isArjun || userStats.quizzesCompleted > 0
+                      ? "Confidence vs actual accuracy"
+                      : "Complete 1 quiz to calibrate"}
+                  </div>
                 </div>
               </div>
             </div>

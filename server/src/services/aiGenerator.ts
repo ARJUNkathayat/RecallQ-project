@@ -68,11 +68,16 @@ async function callGemini(prompt: string): Promise<string> {
 export async function generateAIQuestions(
   topic: string,
   questionCount: number = 20,
-  difficulty: string = "MEDIUM"
+  difficulty: string = "MEDIUM",
+  sourceNotes?: string
 ): Promise<AIQuestion[]> {
+  const notesBlock = sourceNotes?.trim()
+    ? `\nCRITICAL SOURCE MATERIAL — Base your questions directly on these student study notes / syllabus:\n"""\n${sourceNotes.trim().slice(0, 8000)}\n"""\nExtract distinct subtopics directly from this material.`
+    : "";
+
   const prompt = `You are an elite diagnostic assessment creator for the RecallIQ adaptive learning platform.
 Generate exactly ${questionCount} diverse, high-yield diagnostic multiple-choice questions for the topic: "${topic}".
-Difficulty level: ${difficulty}.
+Difficulty level: ${difficulty}.${notesBlock}
 
 Requirements:
 1. Cover at least 4 to 6 distinct, granular subtopics under "${topic}".
@@ -194,4 +199,48 @@ function generateFallbackQuestions(topic: string, count: number, customSubtopics
     });
   }
   return sampleQuestions;
+}
+
+/**
+ * Explain a missed quiz question with an intuitive analogy and clear breakdown
+ */
+export async function explainQuestionDoubt(
+  topic: string,
+  question: string,
+  correctOption: string,
+  chosenOption: string,
+  userQuestion?: string
+): Promise<{ explanation: string; analogy: string; keyTakeaway: string }> {
+  const prompt = `A student studying "${topic}" missed this diagnostic question:
+Question: "${question}"
+Student chose: "${chosenOption}"
+Correct answer: "${correctOption}"
+${userQuestion ? `Student's specific doubt: "${userQuestion}"` : ""}
+
+Give a crisp, intuitive explanation in JSON:
+{
+  "explanation": "2-3 clear sentences explaining why '${correctOption}' is right and why '${chosenOption}' is a trap.",
+  "analogy": "1 concrete real-world analogy so it sticks in memory.",
+  "keyTakeaway": "1 short memorable rule of thumb."
+}`;
+
+  try {
+    const raw = await callGemini(prompt);
+    const parsed = JSON.parse(raw);
+    if (parsed?.explanation) {
+      return {
+        explanation: parsed.explanation,
+        analogy: parsed.analogy || "Think of it like organizing a well-indexed library shelf.",
+        keyTakeaway: parsed.keyTakeaway || `Focus on the core invariant behind ${correctOption}.`,
+      };
+    }
+  } catch (err) {
+    console.warn("explainQuestionDoubt Gemini fallback:", err);
+  }
+
+  return {
+    explanation: `"${correctOption}" satisfies the core constraint in ${topic}, whereas "${chosenOption}" misses a key edge case or boundary condition.`,
+    analogy: "Think of it like checking that a bridge can hold peak load before allowing traffic, rather than just average load.",
+    keyTakeaway: `Always verify the invariant behind "${correctOption}" before locking your answer.`,
+  };
 }

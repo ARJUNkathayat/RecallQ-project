@@ -91,6 +91,10 @@ export default function RevisionPage() {
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [reviewMode, setReviewMode] = useState<"flashcards" | "notes">("flashcards");
+  const [cardIdx, setCardIdx] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [masteredCards, setMasteredCards] = useState<number[]>([]);
 
   useEffect(() => {
     try {
@@ -223,6 +227,9 @@ export default function RevisionPage() {
                     onClick={() => {
                       setActiveTopic(item);
                       setSessionCompleted(false);
+                      setCardIdx(0);
+                      setIsFlipped(false);
+                      setMasteredCards([]);
                     }}
                     className={`p-5 rounded-3xl border cursor-pointer transition-all duration-200 ${
                       isSelected
@@ -341,21 +348,129 @@ export default function RevisionPage() {
                       </p>
                     </div>
 
-                    {/* Key Points */}
-                    <div>
-                      <h5 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-2.5">
-                        Important Rules & Formulas
-                      </h5>
-                      <div className="space-y-2">
-                        {activeTopic.keyPoints.map((pt, i) => (
-                          <div key={i} className="flex items-start gap-2.5 text-xs text-slate-700 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
-                            <div className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                              {i + 1}
-                            </div>
-                            <span className="leading-snug">{pt}</span>
-                          </div>
-                        ))}
+                    {/* Key Points or Interactive Flip Flashcards */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                          Active Recall Deck &amp; Rules
+                        </h5>
+                        <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200/80 text-[11px] font-bold">
+                          <button
+                            type="button"
+                            onClick={() => setReviewMode("flashcards")}
+                            className={`px-2.5 py-1 rounded-lg transition-all ${
+                              reviewMode === "flashcards"
+                                ? "bg-white text-indigo-700 shadow-2xs"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            Flip Flashcards
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReviewMode("notes")}
+                            className={`px-2.5 py-1 rounded-lg transition-all ${
+                              reviewMode === "notes"
+                                ? "bg-white text-indigo-700 shadow-2xs"
+                                : "text-slate-500 hover:text-slate-800"
+                            }`}
+                          >
+                            All Rules
+                          </button>
+                        </div>
                       </div>
+
+                      {reviewMode === "flashcards" && activeTopic.keyPoints.length > 0 ? (
+                        (() => {
+                          const totalCards = activeTopic.keyPoints.length;
+                          const safeIdx = cardIdx % totalCards;
+                          const rawText = activeTopic.keyPoints[safeIdx];
+                          const colonPos = rawText.indexOf(":");
+                          const frontPrompt =
+                            colonPos > 0 && colonPos < 45
+                              ? `Explain: ${rawText.slice(0, colonPos)}`
+                              : `Recall Key Concept #${safeIdx + 1} for ${activeTopic.topic}`;
+                          const backAnswer =
+                            colonPos > 0 && colonPos < 45
+                              ? rawText.slice(colonPos + 1).trim()
+                              : rawText;
+
+                          return (
+                            <div className="space-y-3">
+                              <div
+                                onClick={() => setIsFlipped(!isFlipped)}
+                                className={`cursor-pointer select-none min-h-[165px] p-6 rounded-2xl border-2 transition-all duration-200 flex flex-col justify-between ${
+                                  isFlipped
+                                    ? "bg-indigo-50/70 border-indigo-400 shadow-sm"
+                                    : "bg-slate-950 text-white border-slate-800 shadow-md hover:border-indigo-500"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider">
+                                  <span className={isFlipped ? "text-indigo-600" : "text-indigo-300"}>
+                                    {isFlipped ? "Answer / Core Rule" : "Active Recall Prompt"}
+                                  </span>
+                                  <span className={isFlipped ? "text-slate-500" : "text-slate-400"}>
+                                    Card {safeIdx + 1} / {totalCards} &middot; Tap to flip
+                                  </span>
+                                </div>
+
+                                <div className="my-4 text-sm sm:text-base font-bold leading-relaxed">
+                                  {isFlipped ? (
+                                    <span className="text-slate-900">{backAnswer}</span>
+                                  ) : (
+                                    <span className="text-white">{frontPrompt}</span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between text-[11px]">
+                                  <span className={isFlipped ? "text-indigo-600 font-semibold" : "text-slate-400"}>
+                                    {masteredCards.includes(safeIdx) ? "✓ Marked Recalled" : "Tap card to reveal answer"}
+                                  </span>
+                                  <RotateCcw className={`w-3.5 h-3.5 ${isFlipped ? "text-indigo-600" : "text-slate-400"}`} />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsFlipped(false);
+                                    setCardIdx((prev) => (prev + 1) % totalCards);
+                                  }}
+                                  className="px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-colors"
+                                >
+                                  Need Review &rarr;
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMasteredCards((prev) =>
+                                      prev.includes(safeIdx) ? prev : [...prev, safeIdx]
+                                    );
+                                    setIsFlipped(false);
+                                    setCardIdx((prev) => (prev + 1) % totalCards);
+                                  }}
+                                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Got It ({masteredCards.length}/{totalCards})</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="space-y-2">
+                          {activeTopic.keyPoints.map((pt, i) => (
+                            <div key={i} className="flex items-start gap-2.5 text-xs text-slate-700 bg-slate-50/60 p-3 rounded-xl border border-slate-100">
+                              <div className="w-5 h-5 rounded-md bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                                {i + 1}
+                              </div>
+                              <span className="leading-snug">{pt}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Pitfall Alert */}

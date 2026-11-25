@@ -88,7 +88,12 @@ export default function DashboardPage() {
             </div>
 
             <div className="text-xs font-semibold text-slate-500 bg-white px-3.5 py-1.5 rounded-full border border-slate-200/80 shadow-2xs self-start sm:self-auto">
-              Thu, 18 Sep 2026
+              {new Date().toLocaleDateString("en-GB", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
             </div>
           </div>
 

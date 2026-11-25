@@ -12,21 +12,21 @@ const defaultRevisions = [
     due: "Today",
     dueColor: "bg-red-100 text-red-700 border-red-200",
     risk: "High Risk · 61% Mastery",
-    href: "/revision/dbms-norm"
+    href: "/revision"
   },
   {
     topic: "Process Scheduling",
     due: "Tomorrow",
     dueColor: "bg-amber-100 text-amber-700 border-amber-200",
     risk: "Medium Risk · 68% Mastery",
-    href: "/revision/os-scheduling"
+    href: "/revision"
   },
   {
     topic: "SQL Joins",
     due: "In 2 days",
     dueColor: "bg-yellow-100 text-yellow-800 border-yellow-200",
     risk: "Medium Risk · 72% Mastery",
-    href: "/revision/sql-joins"
+    href: "/revision"
   }
 ];
 
